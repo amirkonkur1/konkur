@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📚 پلنر هفتگی دانش‌آموز</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- ── Header ── -->
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">
+        <span class="logo-icon">📚</span>
+        <h1>پلنر هفتگی</h1>
+      </div>
+      <div class="header-actions">
+        <div class="week-navigator">
+          <button id="prevWeek" class="nav-btn" title="هفته قبل">◀</button>
+          <span id="weekLabel" class="week-label"></span>
+          <button id="nextWeek" class="nav-btn" title="هفته بعد">▶</button>
+          <button id="todayBtn" class="today-btn">امروز</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Stats Bar ── -->
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-icon">📋</div>
+      <div class="stat-info">
+        <span class="stat-value" id="statTotal">0</span>
+        <span class="stat-label">کل وظایف</span>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">✅</div>
+      <div class="stat-info">
+        <span class="stat-value" id="statCompleted">0</span>
+        <span class="stat-label">انجام شده</span>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📊</div>
+      <div class="stat-info">
+        <span class="stat-value" id="statRate">0%</span>
+        <span class="stat-label">پیشرفت</span>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">⏰</div>
+      <div class="stat-info">
+        <span class="stat-value" id="statHours">0</span>
+        <span class="stat-label">ساعت مطالعه</span>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">🎯</div>
+      <div class="stat-info">
+        <span class="stat-value" id="statGoals">0/0</span>
+        <span class="stat-label">اهداف</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Main Layout ── -->
+  <div class="main-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <!-- Goals Section -->
+      <div class="sidebar-section">
+        <div class="section-header">
+          <h3>🎯 اهداف هفته</h3>
+          <button class="add-btn" onclick="showGoalModal()">+</button>
+        </div>
+        <div id="goalsList" class="goals-list"></div>
+      </div>
+
+      <!-- Subjects Section -->
+      <div class="sidebar-section">
+        <div class="section-header">
+          <h3>📖 درس‌ها</h3>
+          <button class="add-btn" onclick="showSubjectModal()">+</button>
+        </div>
+        <div id="subjectsList" class="subjects-list"></div>
+      </div>
+
+      <!-- Quick Add -->
+      <div class="sidebar-section">
+        <button class="quick-add-btn" onclick="showTaskModal()">
+          ➕ افزودن برنامه جدید
+        </button>
+      </div>
+    </aside>
+
+    <!-- Weekly Grid -->
+    <main class="weekly-grid" id="weeklyGrid">
+      <!-- Days will be rendered here -->
+    </main>
+  </div>
+
+  <!-- ── Task Modal ── -->
+  <div id="taskModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="taskModalTitle">➕ افزودن برنامه جدید</h2>
+        <button class="close-btn" onclick="closeModal('taskModal')">&times;</button>
+      </div>
+      <form id="taskForm" onsubmit="saveTask(event)">
+        <input type="hidden" id="taskId" value="">
+        <div class="form-row">
+          <div class="form-group">
+            <label>عنوان *</label>
+            <input type="text" id="taskTitle" required placeholder="مثلاً: مطالعه ریاضی">
+          </div>
+          <div class="form-group">
+            <label>درس</label>
+            <select id="taskSubject">
+              <option value="">بدون درس</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>روز *</label>
+            <select id="taskDay" required>
+              <option value="شنبه">شنبه</option>
+              <option value="یکشنبه">یکشنبه</option>
+              <option value="دوشنبه">دوشنبه</option>
+              <option value="سه‌شنبه">سه‌شنبه</option>
+              <option value="چهارشنبه">چهارشنبه</option>
+              <option value="پنجشنبه">پنجشنبه</option>
+              <option value="جمعه">جمعه</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>نوع فعالیت</label>
+            <select id="taskType">
+              <option value="مطالعه">📖 مطالعه</option>
+              <option value="کلاس">🏫 کلاس</option>
+              <option value="تکلیف">📝 تکلیف</option>
+              <option value="امتحان">📋 امتحان</option>
+              <option value="مرور">🔄 مرور</option>
+              <option value="سایر">📌 سایر</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>ساعت شروع *</label>
+            <input type="time" id="taskStartTime" required value="08:00">
+          </div>
+          <div class="form-group">
+            <label>ساعت پایان *</label>
+            <input type="time" id="taskEndTime" required value="09:00">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>اولویت</label>
+            <select id="taskPriority">
+              <option value="کم">🟢 کم</option>
+              <option value="متوسط" selected>🟡 متوسط</option>
+              <option value="زیاد">🟠 زیاد</option>
+              <option value="بحرانی">🔴 بحرانی</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>توضیحات</label>
+          <textarea id="taskDesc" rows="3" placeholder="توضیحات اضافی..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" onclick="closeModal('taskModal')">انصراف</button>
+          <button type="submit" class="btn-save">ذخیره</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Goal Modal ── -->
+  <div id="goalModal" class="modal">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h2>🎯 هدف جدید</h2>
+        <button class="close-btn" onclick="closeModal('goalModal')">&times;</button>
+      </div>
+      <form onsubmit="saveGoal(event)">
+        <div class="form-group">
+          <label>هدف هفته *</label>
+          <input type="text" id="goalText" required placeholder="مثلاً: خواندن ۵ فصل ریاضی">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" onclick="closeModal('goalModal')">انصراف</button>
+          <button type="submit" class="btn-save">ذخیره</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Subject Modal ── -->
+  <div id="subjectModal" class="modal">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h2 id="subjectModalTitle">📖 درس جدید</h2>
+        <button class="close-btn" onclick="closeModal('subjectModal')">&times;</button>
+      </div>
+      <form id="subjectForm" onsubmit="saveSubject(event)">
+        <input type="hidden" id="subjectId" value="">
+        <div class="form-group">
+          <label>نام درس *</label>
+          <input type="text" id="subjectName" required placeholder="مثلاً: ریاضی">
+        </div>
+        <div class="form-group">
+          <label>نام معلم</label>
+          <input type="text" id="subjectTeacher" placeholder="مثلاً: آقای محمدی">
+        </div>
+        <div class="form-group">
+          <label>رنگ</label>
+          <input type="color" id="subjectColor" value="#6C63FF">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" onclick="closeModal('subjectModal')">انصراف</button>
+          <button type="submit" class="btn-save">ذخیره</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Toast Notification ── -->
+  <div id="toast" class="toast"></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
