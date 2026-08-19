@@ -3,85 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>پلنر هفتگی پیشرفته</title>
+    <title>پلنر هوشمند دانش‌آموز</title>
+    <!-- فونت وزیرمتن -->
     <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
-    <!-- Icons -->
+    <!-- آیکون‌های RemixIcon -->
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-    <!-- Header -->
-    <header class="header">
+    <!-- پس‌زمینه متحرک -->
+    <div class="background-shapes">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+    </div>
+
+    <!-- نوار ابزار اصلی -->
+    <header class="glass-header">
         <div class="container header-content">
-            <div class="logo">
-                <i class="ri-calendar-schedule-line"></i>
-                <h1>پلنر هوشمند</h1>
+            <div class="brand">
+                <div class="logo-box">
+                    <i class="ri-rocket-2-fill"></i>
+                </div>
+                <div>
+                    <h1>پلنر هوشمند</h1>
+                    <span class="subtitle">مدیریت زمان تحصیلی</span>
+                </div>
             </div>
-            <div class="week-nav">
-                <button id="prevWeek"><i class="ri-arrow-right-s-line"></i></button>
-                <span id="currentWeekLabel">...</span>
-                <button id="nextWeek"><i class="ri-arrow-left-s-line"></i></button>
-                <button id="todayBtn" class="btn-primary">امروز</button>
+
+            <div class="week-controller glass-panel">
+                <button id="prevWeek" class="icon-btn"><i class="ri-arrow-right-s-line"></i></button>
+                <div class="date-display">
+                    <i class="ri-calendar-event-line"></i>
+                    <span id="currentWeekLabel">...</span>
+                </div>
+                <button id="nextWeek" class="icon-btn"><i class="ri-arrow-left-s-line"></i></button>
             </div>
+
             <div class="actions">
-                <button onclick="openModal('teacherModal')" class="btn-outline"><i class="ri-user-add-line"></i> استاد جدید</button>
-                <button onclick="openModal('classModal')" class="btn-outline"><i class="ri-book-open-line"></i> کلاس جدید</button>
-                <button onclick="openModal('taskModal')" class="btn-primary"><i class="ri-add-line"></i> تسک جدید</button>
+                <button onclick="openModal('teacherModal')" class="btn btn-secondary">
+                    <i class="ri-user-star-line"></i> <span>استاد</span>
+                </button>
+                <button onclick="openModal('classModal')" class="btn btn-secondary">
+                    <i class="ri-book-mark-line"></i> <span>کلاس</span>
+                </button>
+                <button onclick="openModal('taskModal')" class="btn btn-primary glow">
+                    <i class="ri-add-circle-line"></i> <span>تسک جدید</span>
+                </button>
             </div>
         </div>
     </header>
 
-    <!-- Main Grid -->
+    <!-- شبکه هفتگی -->
     <main class="container main-grid" id="weeklyGrid">
-        <!-- Days will be injected here via JS -->
+        <!-- ستون‌ها توسط جاوااسکریپت پر می‌شوند -->
     </main>
 
-    <!-- Modals -->
+    <!-- ─── مودال‌ها (با افکت شیشه‌ای) ─── -->
 
-    <!-- 1. Add Teacher Modal -->
-    <div id="teacherModal" class="modal">
-        <div class="modal-content">
+    <!-- 1. افزودن استاد -->
+    <div id="teacherModal" class="modal-wrapper">
+        <div class="modal-backdrop"></div>
+        <div class="modal-glass">
             <div class="modal-header">
-                <h3>افزودن استاد جدید</h3>
-                <button class="close-modal">&times;</button>
+                <h3><i class="ri-user-add-line"></i> افزودن استاد جدید</h3>
+                <button class="close-modal"><i class="ri-close-line"></i></button>
             </div>
             <form id="teacherForm" enctype="multipart/form-data">
-                <div class="form-group">
+                <div class="input-group">
                     <label>نام استاد</label>
-                    <input type="text" name="name" required placeholder="مثلا: دکتر حسینی">
+                    <input type="text" name="name" required placeholder="مثلا: دکتر حسابی">
                 </div>
-                <div class="form-group">
+                <div class="input-group">
                     <label>درس تخصصی</label>
-                    <input type="text" name="subject_name" required placeholder="مثلا: ریاضیات گسسته">
+                    <input type="text" name="subject_name" required placeholder="مثلا: فیزیک کوانتوم">
                 </div>
-                <div class="form-group">
-                    <label>رنگ نمایشی</label>
-                    <input type="color" name="color" value="#6C63FF">
+                <div class="row-group">
+                    <div class="input-group">
+                        <label>رنگ سازمانی</label>
+                        <input type="color" name="color" value="#6C63FF">
+                    </div>
+                    <div class="input-group">
+                        <label>عکس پرسنلی</label>
+                        <div class="file-upload">
+                            <input type="file" name="photo" accept="image/*" id="teacherPhoto">
+                            <label for="teacherPhoto"><i class="ri-image-add-line"></i> انتخاب عکس</label>
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>عکس استاد</label>
-                    <input type="file" name="photo" accept="image/*">
-                </div>
-                <button type="submit" class="btn-submit">ذخیره استاد</button>
+                <button type="submit" class="btn-submit">ثبت استاد</button>
             </form>
         </div>
     </div>
 
-    <!-- 2. Add Class (Schedule) Modal -->
-    <div id="classModal" class="modal">
-        <div class="modal-content">
+    <!-- 2. ثبت کلاس -->
+    <div id="classModal" class="modal-wrapper">
+        <div class="modal-backdrop"></div>
+        <div class="modal-glass">
             <div class="modal-header">
-                <h3>ثبت کلاس در برنامه هفتگی</h3>
-                <button class="close-modal">&times;</button>
+                <h3><i class="ri-timeline-view"></i> تنظیم برنامه کلاسی</h3>
+                <button class="close-modal"><i class="ri-close-line"></i></button>
             </div>
             <form id="scheduleForm">
-                <div class="form-group">
+                <div class="input-group">
                     <label>انتخاب استاد</label>
                     <select id="teacherSelect" name="teacher_id" required></select>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
+                <div class="row-group">
+                    <div class="input-group">
                         <label>روز هفته</label>
                         <select name="day_of_week" required>
                             <option value="شنبه">شنبه</option>
@@ -93,70 +123,83 @@
                             <option value="جمعه">جمعه</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>مکان</label>
-                        <input type="text" name="location" placeholder="کلاس ۱۰۲">
+                    <div class="input-group">
+                        <label>مکان کلاس</label>
+                        <input type="text" name="location" placeholder="ساختمان A - کلاس ۱۲">
                     </div>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>ساعت شروع</label>
+                <div class="row-group">
+                    <div class="input-group">
+                        <label>شروع</label>
                         <input type="time" name="start_time" required>
                     </div>
-                    <div class="form-group">
-                        <label>ساعت پایان</label>
+                    <div class="input-group">
+                        <label>پایان</label>
                         <input type="time" name="end_time" required>
                     </div>
                 </div>
-                <button type="submit" class="btn-submit">ثبت کلاس</button>
+                <button type="submit" class="btn-submit">ثبت در برنامه</button>
             </form>
         </div>
     </div>
 
-    <!-- 3. Add Task Modal -->
-    <div id="taskModal" class="modal">
-        <div class="modal-content">
+    <!-- 3. افزودن تسک -->
+    <div id="taskModal" class="modal-wrapper">
+        <div class="modal-backdrop"></div>
+        <div class="modal-glass">
             <div class="modal-header">
-                <h3>افزودن فعالیت مطالعاتی</h3>
-                <button class="close-modal">&times;</button>
+                <h3><i class="ri-focus-3-line"></i> هدف مطالعاتی جدید</h3>
+                <button class="close-modal"><i class="ri-close-line"></i></button>
             </div>
             <form id="taskForm">
-                <div class="form-group">
+                <div class="input-group">
                     <label>عنوان فعالیت</label>
-                    <input type="text" id="taskTitle" required placeholder="مثلا: مرور فصل ۳ فیزیک">
+                    <input type="text" id="taskTitle" required placeholder="مثلا: مرور فصل ۳ زیست">
                 </div>
-                <div class="form-group">
-                    <label>نوع فعالیت</label>
-                    <select id="taskType" class="type-select">
-                        <option value="مرور">🔄 مرور درس</option>
-                        <option value="حل نمونه سوال">✍️ حل نمونه سوال</option>
-                        <option value="نوشتن جزوه">📝 نوشتن جزوه</option>
-                        <option value="مطالعه کتاب">📖 مطالعه کتاب</option>
-                        <option value="آزمون">📋 آزمون آزمایشی</option>
-                        <option value="سایر">📌 سایر</option>
-                    </select>
+                
+                <div class="type-selector">
+                    <label>نوع فعالیت را انتخاب کنید:</label>
+                    <div class="types-grid">
+                        <label class="type-option">
+                            <input type="radio" name="taskType" value="مرور" checked>
+                            <span><i class="ri-refresh-line"></i> مرور</span>
+                        </label>
+                        <label class="type-option">
+                            <input type="radio" name="taskType" value="حل نمونه سوال">
+                            <span><i class="ri-ball-pen-line"></i> تست/سوال</span>
+                        </label>
+                        <label class="type-option">
+                            <input type="radio" name="taskType" value="نوشتن جزوه">
+                            <span><i class="ri-file-text-line"></i> جزوه</span>
+                        </label>
+                        <label class="type-option">
+                            <input type="radio" name="taskType" value="مطالعه کتاب">
+                            <span><i class="ri-book-open-line"></i> مطالعه</span>
+                        </label>
+                        <label class="type-option">
+                            <input type="radio" name="taskType" value="آزمون">
+                            <span><i class="ri-trophy-line"></i> آزمون</span>
+                        </label>
+                    </div>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
+
+                <div class="row-group">
+                    <div class="input-group">
                         <label>تاریخ انجام (شمسی)</label>
                         <input type="text" id="taskDate" placeholder="1403/08/12" required>
-                        <small style="color:#aaa">فرمت: YYYY/MM/DD</small>
                     </div>
-                    <div class="form-group">
+                    <div class="input-group">
                         <label>اولویت</label>
                         <select id="taskPriority">
-                            <option value="کم">کم</option>
-                            <option value="متوسط" selected>متوسط</option>
-                            <option value="زیاد">زیاد</option>
-                            <option value="بحرانی">بحرانی</option>
+                            <option value="کم">🟢 کم</option>
+                            <option value="متوسط" selected>🟡 متوسط</option>
+                            <option value="زیاد">🟠 زیاد</option>
+                            <option value="بحرانی">🔴 بحرانی</option>
                         </select>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label>توضیحات</label>
-                    <textarea id="taskDesc" rows="3"></textarea>
-                </div>
-                <button type="submit" class="btn-submit">ذخیره فعالیت</button>
+                
+                <button type="submit" class="btn-submit gradient-btn">ذخیره هدف</button>
             </form>
         </div>
     </div>
