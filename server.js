@@ -11,6 +11,7 @@ const moment = require('moment-jalaali');
 moment.loadPersian({ dialect: 'persian-modern', usePersianDigits: true });
 
 const app = express();
+// دریافت پورت از متغیرهای محیطی Railway یا پیش‌فرض 3000
 const PORT = process.env.PORT || 3000;
 
 // ──────────────── Middleware ────────────────
@@ -49,26 +50,38 @@ const dbConfig = {
     database: process.env.MYSQLDATABASE || 'planner_db',
     user: process.env.MYSQLUSER || 'root',
     password: process.env.MYSQLPASSWORD || '',
-    charset: 'utf8mb4'
+    charset: 'utf8mb4',
+    connectTimeout: 60000, // افزایش زمان انتظار برای اتصال
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 0
 };
 
 let pool;
-function getPool() {
-    if (!pool) pool = mysql.createPool(dbConfig);
-    return pool;
+
+async function getPoolWithRetry(retries = 5) {
+    if (pool) return pool;
+
+    for (let i = 1; i <= retries; i++) {
+        try {
+            console.log(`تلاش برای اتصال به دیتابیس (${i}/${retries})...`);
+            pool = mysql.createPool(dbConfig);
+            await pool.query('SELECT 1'); // تست اتصال
+            console.log('✅ اتصال به دیتابیس موفقیت‌آمیز بود.');
+            return pool;
+        } catch (err) {
+            console.error(`❌ خطا در اتصال به دیتابیس: ${err.message}`);
+            if (i === retries) throw err;
+            await new Promise(res => setTimeout(res, 5000)); // 5 ثانیه صبر
+        }
+    }
 }
 
 // ──────────────── DB Initialization ────────────────
 async function initDB() {
     try {
-        // 1. Create DB if not exists
-        const tempPool = mysql.createPool({ ...dbConfig, database: undefined });
-        await tempPool.query(`CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_persian_ci`);
-        await tempPool.end();
+        const p = await getPoolWithRetry();
 
-        const p = getPool();
-
-        // 2. Create Tables
+        // 1. Create Tables
         
         // جدول اساتید
         await p.query(`
@@ -104,38 +117,29 @@ async function initDB() {
                 task_type ENUM('مرور','حل نمونه سوال','نوشتن جزوه','مطالعه کتاب','آزمون','سایر') DEFAULT 'مطالعه کتاب',
                 priority ENUM('کم','متوسط','زیاد','بحرانی') DEFAULT 'متوسط',
                 is_completed BOOLEAN DEFAULT FALSE,
-                due_date DATE NOT NULL, -- تاریخ شمسی به فرمت YYYY-MM-DD ذخیره می‌شود اما ما رشته نگه می‌داریم
+                due_date DATE NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_persian_ci
         `);
 
-        console.log('✅ دیتابیس آماده شد.');
+        console.log('✅ جداول دیتابیس بررسی و آماده شدند.');
     } catch (err) {
-        console.error('❌ خطا در راه‌اندازی دیتابیس:', err.message);
+        console.error('❌ خطا در راه‌اندازی اولیه دیتابیس:', err.message);
+        // برنامه را متوقف نمی‌کنیم تا شاید بعداً متصل شود
     }
 }
 
 // ──────────────── Helper: Jalali Week Logic ────────────────
-// تبدیل تاریخ میلادی ورودی به شروع هفته شمسی (شنبه)
 function getJalaliWeekStart(gregorianDateStr) {
     const m = moment(gregorianDateStr);
-    // در moment-jalaali روزهای هفته: شنبه=0, یکشنبه=1, ..., جمعه=6
-    // متد isoWeekday دوشنبه را 1 می‌گیرد. ما باید دستی حساب کنیم.
-    // بیایید ساده‌تر عمل کنیم: پیدا کردن شنبه همان هفته
-    
-    let currentDayOfWeek = m.isoWeekday(); // Monday=1 ... Sunday=7
-    // تبدیل به سیستم ایرانی: Saturday=0 ... Friday=6
-    // Monday(1) -> 2 (Doshanbe)
-    // Saturday(6) -> 0 (Shanbe)
-    // Sunday(7) -> 1 (Yekshanbe)
-    
+    let currentDayOfWeek = m.isoWeekday(); 
     let iranDayIndex;
     if (currentDayOfWeek === 6) iranDayIndex = 0; // Sat
     else if (currentDayOfWeek === 7) iranDayIndex = 1; // Sun
-    else iranDayIndex = currentDayOfWeek + 1; // Mon->2, Tue->3...
-
+    else iranDayIndex = currentDayOfWeek + 1; 
+    
     const startOfWeek = m.clone().subtract(iranDayIndex, 'days');
-    return startOfWeek.format('YYYY-MM-DD'); // برگرداندن تاریخ میلادی شروع هفته (شنبه)
+    return startOfWeek.format('YYYY-MM-DD');
 }
 
 // ──────────────── API Routes ────────────────
@@ -143,17 +147,19 @@ function getJalaliWeekStart(gregorianDateStr) {
 // 1. Teachers
 app.get('/api/teachers', async (req, res) => {
     try {
-        const [rows] = await getPool().query('SELECT * FROM teachers ORDER BY name');
+        const p = await getPoolWithRetry();
+        const [rows] = await p.query('SELECT * FROM teachers ORDER BY name');
         res.json(rows);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/teachers', upload.single('photo'), async (req, res) => {
     try {
+        const p = await getPoolWithRetry();
         const { name, subject_name, color } = req.body;
         const photo_url = req.file ? `/uploads/teachers/${req.file.filename}` : null;
         
-        const [result] = await getPool().query(
+        const [result] = await p.query(
             'INSERT INTO teachers (name, subject_name, photo_url, color) VALUES (?, ?, ?, ?)',
             [name, subject_name, photo_url, color || '#6C63FF']
         );
@@ -163,22 +169,22 @@ app.post('/api/teachers', upload.single('photo'), async (req, res) => {
 
 app.delete('/api/teachers/:id', async (req, res) => {
     try {
-        // حذف عکس از فایل سیستم
-        const [teachers] = await getPool().query('SELECT photo_url FROM teachers WHERE id=?', [req.params.id]);
+        const p = await getPoolWithRetry();
+        const [teachers] = await p.query('SELECT photo_url FROM teachers WHERE id=?', [req.params.id]);
         if(teachers[0]?.photo_url) {
             const filePath = path.join(__dirname, 'public', teachers[0].photo_url);
             if(fs.existsSync(filePath)) fs.unlinkSync(filePath);
         }
-        await getPool().query('DELETE FROM teachers WHERE id=?', [req.params.id]);
+        await p.query('DELETE FROM teachers WHERE id=?', [req.params.id]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 2. Fixed Schedule (Classes)
+// 2. Fixed Schedule
 app.get('/api/schedule', async (req, res) => {
     try {
-        // دریافت برنامه کلاسی همراه با اطلاعات استاد
-        const [rows] = await getPool().query(`
+        const p = await getPoolWithRetry();
+        const [rows] = await p.query(`
             SELECT s.*, t.name as teacher_name, t.subject_name, t.photo_url, t.color 
             FROM fixed_schedule s
             JOIN teachers t ON s.teacher_id = t.id
@@ -190,8 +196,9 @@ app.get('/api/schedule', async (req, res) => {
 
 app.post('/api/schedule', async (req, res) => {
     try {
+        const p = await getPoolWithRetry();
         const { teacher_id, day_of_week, start_time, end_time, location } = req.body;
-        await getPool().query(
+        await p.query(
             'INSERT INTO fixed_schedule (teacher_id, day_of_week, start_time, end_time, location) VALUES (?, ?, ?, ?, ?)',
             [teacher_id, day_of_week, start_time, end_time, location || '']
         );
@@ -201,16 +208,17 @@ app.post('/api/schedule', async (req, res) => {
 
 app.delete('/api/schedule/:id', async (req, res) => {
     try {
-        await getPool().query('DELETE FROM fixed_schedule WHERE id=?', [req.params.id]);
+        const p = await getPoolWithRetry();
+        await p.query('DELETE FROM fixed_schedule WHERE id=?', [req.params.id]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 3. Tasks (Specific to a date)
+// 3. Tasks
 app.get('/api/tasks', async (req, res) => {
     try {
-        // فیلتر بر اساس بازه زمانی (مثلا یک هفته خاص)
-        const { start, end } = req.query; // dates in YYYY-MM-DD format
+        const p = await getPoolWithRetry();
+        const { start, end } = req.query;
         let query = 'SELECT * FROM tasks';
         let params = [];
         
@@ -221,15 +229,16 @@ app.get('/api/tasks', async (req, res) => {
         
         query += ' ORDER BY due_date, priority DESC';
         
-        const [rows] = await getPool().query(query, params);
+        const [rows] = await p.query(query, params);
         res.json(rows);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/tasks', async (req, res) => {
     try {
+        const p = await getPoolWithRetry();
         const { title, description, task_type, priority, due_date } = req.body;
-        await getPool().query(
+        await p.query(
             'INSERT INTO tasks (title, description, task_type, priority, due_date) VALUES (?, ?, ?, ?, ?)',
             [title, description || '', task_type, priority, due_date]
         );
@@ -239,21 +248,27 @@ app.post('/api/tasks', async (req, res) => {
 
 app.patch('/api/tasks/:id/toggle', async (req, res) => {
     try {
-        await getPool().query('UPDATE tasks SET is_completed = NOT is_completed WHERE id=?', [req.params.id]);
+        const p = await getPoolWithRetry();
+        await p.query('UPDATE tasks SET is_completed = NOT is_completed WHERE id=?', [req.params.id]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.delete('/api/tasks/:id', async (req, res) => {
     try {
-        await getPool().query('DELETE FROM tasks WHERE id=?', [req.params.id]);
+        const p = await getPoolWithRetry();
+        await p.query('DELETE FROM tasks WHERE id=?', [req.params.id]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ──────────────── Start Server ────────────────
+// ابتدا دیتابیس را مقداردهی کن، سپس سرور را بالا بیاور
 initDB().then(() => {
     app.listen(PORT, () => {
         console.log(`🚀 سرور روی پورت ${PORT} اجرا شد`);
     });
+}).catch(err => {
+    console.error("Failed to start server:", err);
+    process.exit(1);
 });
