@@ -1,64 +1,71 @@
 // تنظیمات اولیه
 const DAYS_IR = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
-let currentDate = new Date(); 
+let currentDate = new Date(); // تاریخ جاری سیستم (میلادی) برای ناوبری
 let teachers = [];
 
-// ─── توابع کمکی تاریخ ───
-function toJalali(date) {
-    // اطمینان از اینکه moment وجود دارد
-    if (typeof moment === 'undefined') return date;
-    return moment(date).format('jYYYY/jMM/jDD');
+// ─── توابع کمکی تاریخ شمسی ───
+
+// تبدیل هر تاریخی به فرمت رشته‌ای شمسی (مثال: 1403/08/12)
+function toJalaliStr(dateInput) {
+    if (!dateInput) return '';
+    // اگر ورودی رشته بود (مثل 1403/01/01) آن را برمی‌گردانیم
+    if (typeof dateInput === 'string' && dateInput.includes('/')) return dateInput;
+    
+    const m = moment(dateInput);
+    if (!m.isValid()) return '';
+    return m.format('jYYYY/jMM/jDD');
 }
 
-function getSaturdayOfWeek(date) {
-    if (typeof moment === 'undefined') return date;
-    const m = moment(date);
-    const day = m.isoWeekday(); 
-    let diff = day >= 6 ? day - 6 : day + 1;
-    return m.subtract(diff, 'days').startOf('day');
+// پیدا کردن شنبه‌ی هفته‌ای که تاریخ داده شده در آن قرار دارد
+function getStartOfWeek(dateInput) {
+    const m = moment(dateInput);
+    // دریافت روز هفته میلادی (0=Sun, 1=Mon, ..., 6=Sat)
+    const day = m.day(); 
+    
+    // تبدیل به ایندکس ایرانی (0=Shanbe, 1=Yekshanbe, ..., 6=Jome)
+    // Shanbe(6) -> 0, Yek(0)->1, Do(1)->2 ... Jom(5)->6
+    let iranDayIndex = day === 6 ? 0 : day + 1;
+    
+    // کم کردن تعداد روزها برای رسیدن به شنبه
+    return m.subtract(iranDayIndex, 'days').startOf('day');
 }
 
 // ─── بارگذاری داده‌ها ───
 async function loadData() {
-    console.log("🔄 شروع بارگذاری اطلاعات...");
+    console.log("🔄 بارگذاری اطلاعات...");
     renderHeader();
     
     try {
         await loadTeachers();
         await renderGrid();
-        console.log("✅ بارگذاری کامل شد.");
     } catch (error) {
-        console.error("❌ خطا در بارگذاری:", error);
-        alert("خطا در ارتباط با سرور. لطفا کنسول مرورگر (F12) را چک کنید.");
+        console.error("❌ خطا:", error);
+        document.getElementById('weeklyGrid').innerHTML = 
+            '<div style="color:red; text-align:center; padding:20px;">خطا در ارتباط با سرور</div>';
     }
 }
 
 async function loadTeachers() {
-    try {
-        const res = await fetch('/api/teachers');
-        if (!res.ok) throw new Error('خطا در دریافت اساتید');
-        teachers = await res.json();
-        
-        const select = document.getElementById('teacherSelect');
-        if(select) {
-            select.innerHTML = '<option value="">انتخاب کنید...</option>';
-            teachers.forEach(t => {
-                select.innerHTML += `<option value="${t.id}">${t.name} (${t.subject_name})</option>`;
-            });
-        }
-    } catch (e) {
-        console.error("خطا در لود اساتید:", e);
-        teachers = [];
+    const res = await fetch('/api/teachers');
+    teachers = await res.json();
+    
+    const select = document.getElementById('teacherSelect');
+    if(select) {
+        select.innerHTML = '<option value="">انتخاب استاد...</option>';
+        teachers.forEach(t => {
+            select.innerHTML += `<option value="${t.id}">${t.name} (${t.subject_name})</option>`;
+        });
     }
 }
 
 // ─── رندر کردن صفحه ───
 function renderHeader() {
-    const sat = getSaturdayOfWeek(currentDate);
-    const fri = sat.clone().add(6, 'days');
+    const startOfWeek = getStartOfWeek(currentDate);
+    const endOfWeek = startOfWeek.clone().add(6, 'days');
+    
     const label = document.getElementById('currentWeekLabel');
     if(label) {
-        label.innerText = `${toJalali(sat)} تا ${toJalali(fri)}`;
+        label.innerText = `${toJalaliStr(startOfWeek)} الی ${toJalaliStr(endOfWeek)}`;
     }
 }
 
@@ -66,77 +73,76 @@ async function renderGrid() {
     const grid = document.getElementById('weeklyGrid');
     if (!grid) return;
     
-    grid.innerHTML = '<div style="text-align:center; padding:20px;">در حال بارگذاری...</div>';
+    grid.innerHTML = '<div style="text-align:center; padding:20px; color:#aaa;">در حال دریافت برنامه...</div>';
 
-    const sat = getSaturdayOfWeek(currentDate);
+    const startOfWeek = getStartOfWeek(currentDate);
     
-    try {
-        // دریافت برنامه ثابت
-        const scheduleRes = await fetch('/api/schedule');
-        const schedule = await scheduleRes.json();
+    // 1. دریافت کلاس‌های ثابت
+    const scheduleRes = await fetch('/api/schedule');
+    const schedule = await scheduleRes.json();
 
-        // دریافت تسک‌ها
-        const startMiladi = sat.format('YYYY-MM-DD');
-        const endMiladi = sat.clone().add(6, 'days').format('YYYY-MM-DD');
-        const tasksRes = await fetch(`/api/tasks?start=${startMiladi}&end=${endMiladi}`);
-        const allTasks = await tasksRes.json();
+    // 2. دریافت تسک‌ها برای بازه زمانی این هفته
+    // نکته مهم: ما بازه میلادی را به سرور می‌فرستیم، اما سرور تسک‌ها را بر اساس تاریخ شمسی ذخیره کرده است.
+    // پس باید لیست تمام تسک‌ها را بگیریم و در کلاینت فیلتر کنیم (روش امن‌تر برای تاریخ شمسی)
+    const tasksRes = await fetch('/api/tasks'); 
+    const allTasks = await tasksRes.json();
 
-        grid.innerHTML = ''; // پاک کردن پیام لودینگ
+    grid.innerHTML = ''; 
 
-        for (let i = 0; i < 7; i++) {
-            const dayMoment = sat.clone().add(i, 'days');
-            const dayName = DAYS_IR[i];
-            const jalaliDate = toJalali(dayMoment);
-            const miladiDate = dayMoment.format('YYYY-MM-DD');
-            const isToday = dayMoment.isSame(moment(), 'day');
+    for (let i = 0; i < 7; i++) {
+        const currentDayMoment = startOfWeek.clone().add(i, 'days');
+        const dayName = DAYS_IR[i];
+        const jalaliDateStr = toJalaliStr(currentDayMoment); // مثلا 1403/08/12
+        
+        // آیا این روز، امروز است؟
+        const isToday = moment().format('jYYYY/jMM/jDD') === jalaliDateStr;
 
-            const dayClasses = schedule.filter(s => s.day_of_week === dayName);
-            const dayTasks = allTasks.filter(t => t.due_date === jalaliDate);
+        // فیلتر کلاس‌های این روز (بر اساس نام روز)
+        const dayClasses = schedule.filter(s => s.day_of_week === dayName);
+        
+        // فیلتر تسک‌های این روز (بر اساس تاریخ شمسی)
+        const dayTasks = allTasks.filter(t => t.due_date === jalaliDateStr);
 
-            const col = document.createElement('div');
-            col.className = `day-column ${isToday ? 'today' : ''}`;
-            
-            // ساخت HTML کلاس‌ها
-            let classesHtml = dayClasses.map(c => `
-                <div class="class-card" style="border-color: ${c.color || '#6366f1'}">
-                    <div class="class-time"><i class="ri-time-line"></i> ${c.start_time.substring(0,5)} - ${c.end_time.substring(0,5)}</div>
-                    <div class="class-subject">${c.subject_name}</div>
-                    <div class="class-teacher">
-                        ${c.photo_url ? `<img src="${c.photo_url}" class="teacher-avatar" onerror="this.style.display='none'">` : '<div class="teacher-avatar" style="background:#444"></div>'}
-                        <span class="teacher-name">${c.teacher_name}</span>
-                    </div>
-                    <button class="action-btn delete-btn" onclick="deleteClass(${c.id})">×</button>
+        const col = document.createElement('div');
+        col.className = `day-column ${isToday ? 'today' : ''}`;
+        
+        // HTML کلاس‌ها
+        let classesHtml = dayClasses.map(c => `
+            <div class="class-card" style="border-right-color: ${c.color || '#6366f1'}">
+                <div class="class-time"><i class="ri-time-line"></i> ${c.start_time.substring(0,5)} - ${c.end_time.substring(0,5)}</div>
+                <div class="class-subject">${c.subject_name}</div>
+                <div class="class-teacher">
+                    ${c.photo_url ? `<img src="${c.photo_url}" class="teacher-avatar">` : '<div class="teacher-avatar"></div>'}
+                    <span class="teacher-name">${c.teacher_name}</span>
                 </div>
-            `).join('');
+                <button class="action-btn delete-btn" onclick="deleteClass(${c.id})">×</button>
+            </div>
+        `).join('');
 
-            // ساخت HTML تسک‌ها
-            let tasksHtml = dayTasks.map(t => `
-                <div class="task-card ${t.is_completed ? 'completed' : ''} priority-${t.priority}" onclick="toggleTask(${t.id})">
-                    <span class="task-type">${getIconForType(t.task_type)} ${t.task_type}</span>
-                    <div class="task-title">${t.title}</div>
-                    <div class="task-actions">
-                        <button class="action-btn check-btn" onclick="event.stopPropagation(); toggleTask(${t.id})"><i class="ri-check-line"></i></button>
-                        <button class="action-btn delete-btn" onclick="event.stopPropagation(); deleteTask(${t.id})"><i class="ri-delete-bin-line"></i></button>
-                    </div>
+        // HTML تسک‌ها
+        let tasksHtml = dayTasks.map(t => `
+            <div class="task-card ${t.is_completed ? 'completed' : ''} priority-${t.priority}" onclick="toggleTask(${t.id})">
+                <span class="task-type">${getIconForType(t.task_type)} ${t.task_type}</span>
+                <div class="task-title">${t.title}</div>
+                <div class="task-actions">
+                    <button class="action-btn check-btn" onclick="event.stopPropagation(); toggleTask(${t.id})"><i class="ri-check-line"></i></button>
+                    <button class="action-btn delete-btn" onclick="event.stopPropagation(); deleteTask(${t.id})"><i class="ri-delete-bin-line"></i></button>
                 </div>
-            `).join('');
+            </div>
+        `).join('');
 
-            col.innerHTML = `
-                <div class="day-header">
-                    <span class="day-name">${dayName}</span>
-                    <span class="day-date">${jalaliDate}</span>
-                </div>
-                <div class="day-content">
-                    ${classesHtml}
-                    ${tasksHtml}
-                    <button class="add-task-btn" onclick="openTaskModalForDate('${jalaliDate}')">+ افزودن فعالیت</button>
-                </div>
-            `;
-            grid.appendChild(col);
-        }
-    } catch (err) {
-        grid.innerHTML = '<div style="color:red; text-align:center;">خطا در دریافت اطلاعات. لطفا صفحه را رفرش کنید.</div>';
-        console.error(err);
+        col.innerHTML = `
+            <div class="day-header">
+                <span class="day-name">${dayName}</span>
+                <span class="day-date">${jalaliDateStr}</span>
+            </div>
+            <div class="day-content">
+                ${classesHtml}
+                ${tasksHtml}
+                <button class="add-task-btn" onclick="openTaskModalForDate('${jalaliDateStr}')">+ افزودن فعالیت</button>
+            </div>
+        `;
+        grid.appendChild(col);
     }
 }
 
@@ -148,95 +154,87 @@ function getIconForType(type) {
     return icons[type] || '•';
 }
 
-// ─── رویدادها ───
+// ─── رویدادهای دکمه‌ها ───
 document.addEventListener('DOMContentLoaded', () => {
-    // بررسی اینکه آیا moment لود شده است
     if (typeof moment === 'undefined') {
-        alert("کتابخانه تاریخ لود نشده است. اتصال اینترنت را چک کنید.");
+        alert("خطا: کتابخانه تاریخ لود نشد. اینترنت را چک کنید.");
         return;
     }
-    
     loadData();
 
-    document.getElementById('prevWeek').onclick = () => { currentDate = moment(currentDate).subtract(7, 'days').toDate(); loadData(); };
-    document.getElementById('nextWeek').onclick = () => { currentDate = moment(currentDate).add(7, 'days').toDate(); loadData(); };
-    document.getElementById('todayBtn').onclick = () => { currentDate = new Date(); loadData(); };
+    document.getElementById('prevWeek').onclick = () => { 
+        currentDate = moment(currentDate).subtract(7, 'days').toDate(); 
+        loadData(); 
+    };
+    
+    document.getElementById('nextWeek').onclick = () => { 
+        currentDate = moment(currentDate).add(7, 'days').toDate(); 
+        loadData(); 
+    };
+    
+    document.getElementById('todayBtn').onclick = () => { 
+        currentDate = new Date(); 
+        loadData(); 
+    };
 });
 
 // Modal Logic
-window.openModal = (id) => {
-    const modal = document.getElementById(id);
-    if(modal) modal.classList.add('active');
-};
-
+window.openModal = (id) => document.getElementById(id).classList.add('active');
 document.querySelectorAll('.close-modal').forEach(btn => {
     btn.onclick = function() { this.closest('.modal-wrapper').classList.remove('active'); };
 });
-
-// بستن مودال با کلیک بیرون
-document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
-    backdrop.onclick = function() { this.closest('.modal-wrapper').classList.remove('active'); };
+document.querySelectorAll('.modal-backdrop').forEach(b => {
+    b.onclick = function() { this.closest('.modal-wrapper').classList.remove('active'); };
 });
 
-// Forms
-const teacherForm = document.getElementById('teacherForm');
-if(teacherForm) {
-    teacherForm.onsubmit = async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        try {
-            await fetch('/api/teachers', { method: 'POST', body: formData });
-            e.target.reset();
-            document.getElementById('teacherModal').classList.remove('active');
-            loadData();
-        } catch(err) { alert("خطا در ذخیره استاد"); }
-    };
-}
+// Form Submissions
+document.getElementById('teacherForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    await fetch('/api/teachers', { method: 'POST', body: formData });
+    e.target.reset();
+    document.getElementById('teacherModal').classList.remove('active');
+    loadData();
+};
 
-const scheduleForm = document.getElementById('scheduleForm');
-if(scheduleForm) {
-    scheduleForm.onsubmit = async (e) => {
-        e.preventDefault();
-        const data = Object.fromEntries(new FormData(e.target));
-        try {
-            await fetch('/api/schedule', { 
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data) 
-            });
-            e.target.reset();
-            document.getElementById('classModal').classList.remove('active');
-            loadData();
-        } catch(err) { alert("خطا در ذخیره کلاس"); }
-    };
-}
+document.getElementById('scheduleForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target));
+    await fetch('/api/schedule', { 
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data) 
+    });
+    e.target.reset();
+    document.getElementById('classModal').classList.remove('active');
+    loadData();
+};
 
-const taskForm = document.getElementById('taskForm');
-if(taskForm) {
-    taskForm.onsubmit = async (e) => {
-        e.preventDefault();
-        const data = {
-            title: document.getElementById('taskTitle').value,
-            task_type: document.querySelector('input[name="taskType"]:checked')?.value || 'سایر',
-            priority: document.getElementById('taskPriority').value,
-            due_date: document.getElementById('taskDate').value,
-            description: ''
-        };
-        
-        if(!data.due_date.includes('/')) { alert('فرمت تاریخ باید 1403/01/01 باشد'); return; }
-
-        try {
-            await fetch('/api/tasks', { 
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data) 
-            });
-            e.target.reset();
-            document.getElementById('taskModal').classList.remove('active');
-            loadData();
-        } catch(err) { alert("خطا در ذخیره تسک"); }
+document.getElementById('taskForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const data = {
+        title: document.getElementById('taskTitle').value,
+        task_type: document.querySelector('input[name="taskType"]:checked')?.value || 'سایر',
+        priority: document.getElementById('taskPriority').value,
+        due_date: document.getElementById('taskDate').value, // تاریخ شمسی وارد شده توسط کاربر
+        description: ''
     };
-}
+    
+    // اعتبارسنجی ساده
+    if(!data.due_date || !data.due_date.includes('/')) {
+        alert('لطفا تاریخ را به صورت صحیح وارد کنید (مثال: 1403/08/12)');
+        return;
+    }
+
+    await fetch('/api/tasks', { 
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data) 
+    });
+    e.target.reset();
+    document.getElementById('taskModal').classList.remove('active');
+    loadData();
+};
 
 window.toggleTask = async (id) => {
     await fetch(`/api/tasks/${id}/toggle`, { method: 'PATCH' });
@@ -251,14 +249,13 @@ window.deleteTask = async (id) => {
 };
 
 window.deleteClass = async (id) => {
-    if(confirm('این کلاس حذف شود؟')) {
+    if(confirm('حذف شود؟')) {
         await fetch(`/api/schedule/${id}`, { method: 'DELETE' });
         loadData();
     }
 };
 
 window.openTaskModalForDate = (jalaliDate) => {
-    const dateInput = document.getElementById('taskDate');
-    if(dateInput) dateInput.value = jalaliDate;
+    document.getElementById('taskDate').value = jalaliDate;
     openModal('taskModal');
 };
